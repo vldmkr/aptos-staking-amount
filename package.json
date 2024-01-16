@@ -1,0 +1,25 @@
+{
+  "name": "aptos-staking-amount",
+  "version": "1.0.0",
+  "description": "",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "scripts": {
+    "app": "pnpm ts-node src/app.ts",
+    "build:clean": "rm -rf dist",
+    "build": "pnpm build:clean && tsup src/staking --format cjs --dts-resolve --minify --clean --sourcemap --dts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@apollo/client": "^3.8.9",
+    "@aptos-labs/ts-sdk": "^1.4.0",
+    "graphql": "^16.8.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.3",
+    "ts-node": "^10.9.2",
+    "tsup": "^8.0.1"
+  }
+}
