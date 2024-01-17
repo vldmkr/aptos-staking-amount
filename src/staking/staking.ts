@@ -1,21 +1,25 @@
 import { ApolloClient, InMemoryCache, NormalizedCacheObject } from '@apollo/client/core' // use '@apollo/client' in a react-based app
+import { AptosClient } from 'aptos' // we use Aptos SDK v1 in the Ledger Live app
 import { AptosApiType, AptosConfig } from '@aptos-labs/ts-sdk'
 import { GetDelegatedStakingActivities } from './queries'
 import {
   DelegatedStakingActivity,
   GetDelegatedStakingActivitiesQuery,
   PartitionedDelegatedStakingActivities,
+  StakeDetails,
   StakePrincipals,
 } from './types'
 
 export class Staking {
   private client: ApolloClient<NormalizedCacheObject>
+  private aptos: AptosClient
 
   constructor(config: AptosConfig) {
     this.client = new ApolloClient({
       uri: config.getRequestUrl(AptosApiType.INDEXER),
       cache: new InMemoryCache(),
     })
+    this.aptos = new AptosClient(config.getRequestUrl(AptosApiType.FULLNODE))
   }
 
   async getDelegatedStakingActivitiesForAllPools(delegatorAddress: string): Promise<PartitionedDelegatedStakingActivities> {
@@ -67,12 +71,41 @@ export class Staking {
     return { activePrincipals, pendingInactivePrincipals }
   }
 
+  async getStake(delegatorAddress: string, poolAddress: string): Promise<StakeDetails> {
+    const getStakePromise = this.aptos.view({
+      function: '0x1::delegation_pool::get_stake',
+      type_arguments: [],
+      arguments: [poolAddress, delegatorAddress],
+    })
+    const canWithdrawPromise = this.aptos.view({
+      function: '0x1::delegation_pool::can_withdraw_pending_inactive',
+      type_arguments: [],
+      arguments: [poolAddress],
+    })
+    const [stake, canWithdraw] = await Promise.all([getStakePromise, canWithdrawPromise])
+
+    return {
+      active: parseInt(stake[0].toString()),
+      inactive: parseInt(stake[1].toString()),
+      pendingInactive: parseInt(stake[2].toString()),
+      canWithdrawPendingInactive: canWithdraw[0].valueOf() as boolean,
+      poolAddress,
+    }
+  }
+
   async getTotalStakedAmount(delegatorAddress: string): Promise<number> {
     const partitionedData = await this.getDelegatedStakingActivitiesForAllPools(delegatorAddress)
 
-    return Object.values(partitionedData).reduce((total, activities) => {
-      const { activePrincipals, pendingInactivePrincipals } = this.getStakeOperationPrincipals(activities)
-      return total + activePrincipals + pendingInactivePrincipals
+    const stakePromises = Object.keys(partitionedData).map((poolAddress) => this.getStake(delegatorAddress, poolAddress))
+    const stakes: StakeDetails[] = await Promise.all(stakePromises)
+
+    return stakes.reduce((total, stake) => {
+      const { activePrincipals, pendingInactivePrincipals } = this.getStakeOperationPrincipals(partitionedData[stake.poolAddress])
+      const { active, pendingInactive } = stake
+      const activeRewards = Math.max(0, active - activePrincipals)
+      const pendingInactiveRewards = Math.abs(pendingInactive - pendingInactivePrincipals)
+
+      return total + activeRewards + pendingInactiveRewards + activePrincipals + pendingInactivePrincipals
     }, 0)
   }
 }

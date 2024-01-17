@@ -15,6 +15,7 @@
   "dependencies": {
     "@apollo/client": "^3.8.9",
     "@aptos-labs/ts-sdk": "^1.4.0",
+    "aptos": "^1.21.0",
     "graphql": "^16.8.1"
   },
   "devDependencies": {

@@ -17,3 +17,11 @@ export type StakePrincipals = {
   activePrincipals: number
   pendingInactivePrincipals: number
 }
+
+export type StakeDetails = {
+  active: number
+  inactive: number
+  pendingInactive: number
+  canWithdrawPendingInactive: boolean
+  poolAddress: string
+}
